@@ -4,32 +4,52 @@
   <meta charset="UTF-8">
   <title>词汇判断实验</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 100px; }
-    #stimulus { font-size: 48px; }
+    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+    #stimulus { font-size: 48px; margin: 40px; }
+    #buttons { margin-top: 20px; display: none; }
+    button { font-size: 22px; padding: 15px 25px; margin: 10px; border-radius: 10px; }
     #instructions { max-width: 600px; margin: auto; font-size: 20px; }
   </style>
 </head>
 <body>
   <div id="instructions">
     <h2>实验说明</h2>
-    <p>接下来你会看到一些汉字词语。</p>
+    <p>你会看到一些汉字词语。</p>
     <p>你的任务是判断这些词语是否是真实的成语。</p>
-    <p>如果是真成语，请按 <b>空格键</b>；如果不是，请按任意其他键。</p>
+    <p>如果是真成语，请点 <b>“是真成语 ✅”</b>；如果不是，请点 <b>“不是成语 ❌”</b>。</p>
     <p>请尽量快速、准确地完成任务。</p>
     <button onclick="startExperiment()">开始实验</button>
   </div>
 
   <div id="stimulus" style="display:none;"></div>
+  <div id="buttons">
+    <button onclick="handleResponse(true)">是真成语 ✅</button>
+    <button onclick="handleResponse(false)">不是成语 ❌</button>
+  </div>
 
   <script>
     let names = [];
     let trials = [];
     let trialIndex = 0;
     let results = [];
+    let trialStart = 0;
 
-    // 一些成语 & 伪词
-    const idioms = ["画蛇添足","杯弓蛇影","刻舟求剑","守株待兔","掩耳盗铃","亡羊补牢"];
-    const nonwords = ["马水天风","红白树草","人石木火","飞山雨地","手目口心","鱼书竹狗"];
+    // 成语池（50条）
+    const idioms = [
+      "画蛇添足","杯弓蛇影","刻舟求剑","守株待兔","掩耳盗铃","亡羊补牢","指鹿为马","叶公好龙","东施效颦","盲人摸象",
+      "纸上谈兵","狐假虎威","自相矛盾","滥竽充数","愚公移山","愁眉苦脸","庖丁解牛","囫囵吞枣","鹤立鸡群","井底之蛙",
+      "守口如瓶","如鱼得水","一箭双雕","画龙点睛","水落石出","望梅止渴","口是心非","杯水车薪","开天辟地","心猿意马",
+      "一石二鸟","风马牛不相及","破釜沉舟","按图索骥","惊弓之鸟","狼狈为奸","鸡犬不宁","骑虎难下","一帆风顺","无中生有",
+      "心花怒放","天马行空","滔滔不绝","大公无私","迫不及待","前车之鉴","百发百中","一丝不苟","一见钟情","自作自受"
+    ];
+    // 伪词池（50条，随机造）
+    const nonwords = [
+      "风马书草","云石鱼灯","虎人心木","竹火天山","雨狗书人","地风花牛","水山口火","鸟树心马","日竹鱼石","人月木心",
+      "草火雨山","星手月心","风鱼犬牛","树水人心","马竹书云","石鸟木风","火草鱼人","天竹山书","花月人鱼","心火犬树",
+      "书鱼天草","木风牛星","竹雨人鸟","水石犬心","山马树火","云鱼花人","月心竹天","牛火草水","鸟木星山","人风鱼竹",
+      "雨月犬心","书天石火","竹牛花马","鱼风鸟水","草木山心","星人月火","犬竹水鸟","天书花风","石鱼草火","马树月水",
+      "云人竹心","火牛天鱼","风水木书","鸟草人月","山竹火星","心树水风","花鱼人竹","木犬山月","竹火风鸟","水心草石"
+    ];
 
     function startExperiment() {
       document.getElementById("instructions").innerHTML = `
@@ -49,13 +69,11 @@
       // 生成 trials
       const stimuli = idioms.map(w=>({word:w, correct:true}))
         .concat(nonwords.map(w=>({word:w, correct:false})));
-      // 每个 prime 名字都配上所有词
       names.forEach(name=>{
         stimuli.forEach(s=>{
           trials.push({...s, prime:name});
         });
       });
-      // 打乱
       trials = trials.sort(()=>Math.random()-0.5);
 
       document.getElementById("instructions").style.display = "none";
@@ -68,6 +86,8 @@
       const stimDiv = document.getElementById("stimulus");
       const trial = trials[trialIndex];
 
+      document.getElementById("buttons").style.display = "none";
+
       // fixation
       stimDiv.innerText = "+";
       setTimeout(()=>{
@@ -77,27 +97,28 @@
           // mask
           stimDiv.innerText = "#####";
           setTimeout(()=>{
-            // target word
+            // target
             stimDiv.innerText = trial.word;
-            const start = performance.now();
-
-            function handleResponse(e) {
-              const rt = performance.now() - start;
-              const correct = (trial.correct && e.code==="Space") || (!trial.correct && e.code!=="Space");
-              results.push({prime:trial.prime, word:trial.word, rt:rt, correct:correct});
-              document.removeEventListener("keydown", handleResponse);
-              trialIndex++;
-              runTrial();
-            }
-            document.addEventListener("keydown", handleResponse);
+            trialStart = performance.now();
+            document.getElementById("buttons").style.display = "block";
           }, 50);
         }, 30);
       }, 500);
     }
 
+    function handleResponse(isIdiom) {
+      const trial = trials[trialIndex];
+      const rt = performance.now() - trialStart;
+      const correct = (trial.correct && isIdiom) || (!trial.correct && !isIdiom);
+      results.push({prime:trial.prime, word:trial.word, rt:rt, correct:correct});
+      trialIndex++;
+      runTrial();
+    }
+
     function endExperiment() {
       const stimDiv = document.getElementById("stimulus");
       stimDiv.style.display = "none";
+      document.getElementById("buttons").style.display = "none";
 
       // 计算结果
       let summary = {};
