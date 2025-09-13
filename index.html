@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>潜意识名字实验</title>
+  <script src="https://unpkg.com/jspsych@7.3.0/dist/jspsych.js"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <link href="https://unpkg.com/jspsych@7.3.0/css/jspsych.css" rel="stylesheet" />
+</head>
+<body></body>
+<script>
+
+// ====================== 设置实验 ======================
+const jsPsych = initJsPsych({
+  on_finish: function() {
+    jsPsych.data.displayData(); // 显示原始结果
+  }
+});
+
+// 提示输入两个名字
+let nameA, nameB;
+nameA = prompt("请输入第一个熟悉的名字：");
+nameB = prompt("请输入第二个熟悉的名字：");
+
+// 中文词汇和伪词（示例，需扩充）
+const realWords = ["苹果", "桌子", "学校", "朋友", "电影"];
+const fakeWords = ["苹呱", "桌目", "学片", "朋站", "电马"];
+let stimuli = [];
+realWords.forEach(w => stimuli.push({word:w, type:"real"}));
+fakeWords.forEach(w => stimuli.push({word:w, type:"fake"}));
+
+// 打乱
+stimuli = jsPsych.randomization.shuffle(stimuli);
+
+// ====================== 定义 trial ======================
+let trials = [];
+
+stimuli.forEach(stim => {
+  let prime = Math.random() > 0.5 ? nameA : nameB;
+
+  // 每个 trial 流程
+  trials.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<p style="font-size:50px;">+</p>`, // 注视点
+    choices: "NO_KEYS",
+    trial_duration: 500
+  });
+
+  trials.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<p style="font-size:40px;">${prime}</p>`,
+    choices: "NO_KEYS",
+    trial_duration: 30 // 30ms，接近潜意识
+  });
+
+  trials.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<p style="font-size:40px;">${stim.word}</p>
+               <p style="font-size:20px;">按 Y=真实词, N=伪词</p>`,
+    choices: ['y','n'],
+    data: {prime: prime, word: stim.word, type: stim.type},
+    on_finish: function(data){
+      data.correct = ( (data.response == 'y' && stim.type=="real") ||
+                       (data.response == 'n' && stim.type=="fake") );
+    }
+  });
+});
+
+// ====================== 实验流程 ======================
+let timeline = [];
+
+// 说明
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `<p>欢迎参加实验！</p>
+             <p>你将会快速看到一个名字，然后看到一个汉字词。</p>
+             <p>如果是真实词，按 Y；如果是伪词，按 N。</p>
+             <p>请尽可能又快又准。</p>
+             <p>按空格键开始。</p>`,
+  choices: [' ']
+});
+
+timeline = timeline.concat(trials);
+
+// 结束 & 自动分析
+timeline.push({
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function(){
+    let data = jsPsych.data.get().filter({trial_type:"html-keyboard-response"});
+
+    // 计算每个名字的平均RT和准确率
+    let A = data.filter({prime:nameA});
+    let B = data.filter({prime:nameB});
+
+    let meanRTA = A.select('rt').mean();
+    let meanRTB = B.select('rt').mean();
+    let accA = A.filter({correct:true}).count() / A.count();
+    let accB = B.filter({correct:true}).count() / B.count();
+
+    let chosen;
+    if ((accA > accB && meanRTA < meanRTB) || (accA>=accB && meanRTA<=meanRTB)) {
+      chosen = nameA;
+    } else {
+      chosen = nameB;
+    }
+
+    return `<p>实验结束！</p>
+            <p>更重要的人是：<b>${chosen}</b></p>
+            <p>平均反应时间: ${Math.round(meanRTA)} ms (${nameA}), ${Math.round(meanRTB)} ms (${nameB})</p>
+            <p>准确率: ${(accA*100).toFixed(1)}% (${nameA}), ${(accB*100).toFixed(1)}% (${nameB})</p>
+            <p>谢谢参与！</p>`;
+  },
+  choices: "NO_KEYS",
+  trial_duration: 10000
+});
+
+// ====================== 运行 ======================
+jsPsych.run(timeline);
+
+</script>
+</html>
