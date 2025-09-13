@@ -4,55 +4,55 @@
   <meta charset="UTF-8">
   <title>潜意识名字实验</title>
   <script src="https://unpkg.com/jspsych@7.3.0/dist/jspsych.js"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
   <link href="https://unpkg.com/jspsych@7.3.0/css/jspsych.css" rel="stylesheet" />
 </head>
 <body></body>
 <script>
 
-// ====================== 设置实验 ======================
+// ====================== 初始化 ======================
 const jsPsych = initJsPsych({
   on_finish: function() {
-    jsPsych.data.displayData(); // 显示原始结果
+    // 显示原始结果表格
+    jsPsych.data.displayData();
   }
 });
 
-// 提示输入两个名字
-let nameA, nameB;
-nameA = prompt("请输入第一个熟悉的名字：");
-nameB = prompt("请输入第二个熟悉的名字：");
+// ====================== 获取名字 ======================
+let nameA = prompt("请输入第一个熟悉的名字：");
+let nameB = prompt("请输入第二个熟悉的名字：");
 
-// 中文词汇和伪词（示例，需扩充）
+// 示例词汇
 const realWords = ["苹果", "桌子", "学校", "朋友", "电影"];
 const fakeWords = ["苹呱", "桌目", "学片", "朋站", "电马"];
 let stimuli = [];
 realWords.forEach(w => stimuli.push({word:w, type:"real"}));
 fakeWords.forEach(w => stimuli.push({word:w, type:"fake"}));
-
-// 打乱
 stimuli = jsPsych.randomization.shuffle(stimuli);
 
-// ====================== 定义 trial ======================
+// ====================== 试次 ======================
 let trials = [];
 
 stimuli.forEach(stim => {
   let prime = Math.random() > 0.5 ? nameA : nameB;
 
-  // 每个 trial 流程
+  // 注视点
   trials.push({
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<p style="font-size:50px;">+</p>`, // 注视点
+    stimulus: `<p style="font-size:50px;">+</p>`,
     choices: "NO_KEYS",
     trial_duration: 500
   });
 
+  // 潜意识名字
   trials.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `<p style="font-size:40px;">${prime}</p>`,
     choices: "NO_KEYS",
-    trial_duration: 30 // 30ms，接近潜意识
+    trial_duration: 30 // 30 毫秒
   });
 
+  // 目标词
   trials.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `<p style="font-size:40px;">${stim.word}</p>
@@ -60,8 +60,10 @@ stimuli.forEach(stim => {
     choices: ['y','n'],
     data: {prime: prime, word: stim.word, type: stim.type},
     on_finish: function(data){
-      data.correct = ( (data.response == 'y' && stim.type=="real") ||
-                       (data.response == 'n' && stim.type=="fake") );
+      data.correct = (
+        (data.response == 'y' && stim.type=="real") ||
+        (data.response == 'n' && stim.type=="fake")
+      );
     }
   });
 });
@@ -80,15 +82,15 @@ timeline.push({
   choices: [' ']
 });
 
+// 添加实验试次
 timeline = timeline.concat(trials);
 
-// 结束 & 自动分析
+// 结束 & 自动结果
 timeline.push({
   type: jsPsychHtmlKeyboardResponse,
   stimulus: function(){
     let data = jsPsych.data.get().filter({trial_type:"html-keyboard-response"});
 
-    // 计算每个名字的平均RT和准确率
     let A = data.filter({prime:nameA});
     let B = data.filter({prime:nameB});
 
@@ -119,3 +121,4 @@ jsPsych.run(timeline);
 
 </script>
 </html>
+
