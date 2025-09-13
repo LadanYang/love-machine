@@ -2,96 +2,126 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>名字反应时实验</title>
+  <title>词汇判断实验</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
-    #task, #result { display: none; }
-    button { padding: 10px 20px; margin: 20px; font-size: 18px; }
+    body { font-family: sans-serif; text-align: center; margin-top: 100px; }
+    #stimulus { font-size: 48px; }
+    #instructions { max-width: 600px; margin: auto; font-size: 20px; }
   </style>
 </head>
 <body>
-  <h1>名字选择实验</h1>
-  <div id="setup">
-    <p>请输入两个你同样熟悉的名字：</p>
-    <input id="name1" placeholder="名字 1">
-    <input id="name2" placeholder="名字 2">
-    <button onclick="startTask()">开始实验</button>
+  <div id="instructions">
+    <h2>实验说明</h2>
+    <p>接下来你会看到一些汉字词语。</p>
+    <p>你的任务是判断这些词语是否是真实的成语。</p>
+    <p>如果是真成语，请按 <b>空格键</b>；如果不是，请按任意其他键。</p>
+    <p>请尽量快速、准确地完成任务。</p>
+    <button onclick="startExperiment()">开始实验</button>
   </div>
 
-  <div id="task">
-    <p id="prompt"></p>
-    <button id="btnLeft" onclick="respond(0)"></button>
-    <button id="btnRight" onclick="respond(1)"></button>
-  </div>
-
-  <div id="result">
-    <h2>结果</h2>
-    <p id="final"></p>
-  </div>
+  <div id="stimulus" style="display:none;"></div>
 
   <script>
     let names = [];
     let trials = [];
-    let currentTrial = 0;
-    let startTime;
-    let responses = [];
+    let trialIndex = 0;
+    let results = [];
 
-    function startTask() {
+    // 一些成语 & 伪词
+    const idioms = ["画蛇添足","杯弓蛇影","刻舟求剑","守株待兔","掩耳盗铃","亡羊补牢"];
+    const nonwords = ["马水天风","红白树草","人石木火","飞山雨地","手目口心","鱼书竹狗"];
+
+    function startExperiment() {
+      document.getElementById("instructions").innerHTML = `
+        <p>请输入两个名字（熟悉但不同的人）：</p>
+        <input id="name1" placeholder="名字1"><br><br>
+        <input id="name2" placeholder="名字2"><br><br>
+        <button onclick="beginTask()">确认</button>
+      `;
+    }
+
+    function beginTask() {
       const n1 = document.getElementById("name1").value.trim();
       const n2 = document.getElementById("name2").value.trim();
-      if (!n1 || !n2) { alert("请输入两个名字！"); return; }
-
+      if (!n1 || !n2) { alert("请输入两个名字"); return; }
       names = [n1, n2];
-      // 生成 10 次试次
-      trials = Array.from({length: 10}, () => Math.floor(Math.random() * 2));
 
-      document.getElementById("setup").style.display = "none";
-      document.getElementById("task").style.display = "block";
+      // 生成 trials
+      const stimuli = idioms.map(w=>({word:w, correct:true}))
+        .concat(nonwords.map(w=>({word:w, correct:false})));
+      // 每个 prime 名字都配上所有词
+      names.forEach(name=>{
+        stimuli.forEach(s=>{
+          trials.push({...s, prime:name});
+        });
+      });
+      // 打乱
+      trials = trials.sort(()=>Math.random()-0.5);
 
-      nextTrial();
+      document.getElementById("instructions").style.display = "none";
+      document.getElementById("stimulus").style.display = "block";
+      runTrial();
     }
 
-    function nextTrial() {
-      if (currentTrial >= trials.length) { finish(); return; }
-      const target = trials[currentTrial];
-      document.getElementById("prompt").innerText = "请尽快选择：" + names[target];
-      document.getElementById("btnLeft").innerText = names[0];
-      document.getElementById("btnRight").innerText = names[1];
-      startTime = Date.now();
+    function runTrial() {
+      if (trialIndex >= trials.length) { endExperiment(); return; }
+      const stimDiv = document.getElementById("stimulus");
+      const trial = trials[trialIndex];
+
+      // fixation
+      stimDiv.innerText = "+";
+      setTimeout(()=>{
+        // prime
+        stimDiv.innerText = trial.prime;
+        setTimeout(()=>{
+          // mask
+          stimDiv.innerText = "#####";
+          setTimeout(()=>{
+            // target word
+            stimDiv.innerText = trial.word;
+            const start = performance.now();
+
+            function handleResponse(e) {
+              const rt = performance.now() - start;
+              const correct = (trial.correct && e.code==="Space") || (!trial.correct && e.code!=="Space");
+              results.push({prime:trial.prime, word:trial.word, rt:rt, correct:correct});
+              document.removeEventListener("keydown", handleResponse);
+              trialIndex++;
+              runTrial();
+            }
+            document.addEventListener("keydown", handleResponse);
+          }, 50);
+        }, 30);
+      }, 500);
     }
 
-    function respond(choice) {
-      const rt = Date.now() - startTime;
-      const target = trials[currentTrial];
-      const correct = (choice === target);
-      responses.push({ trial: currentTrial+1, rt, correct });
-      currentTrial++;
-      nextTrial();
-    }
+    function endExperiment() {
+      const stimDiv = document.getElementById("stimulus");
+      stimDiv.style.display = "none";
 
-    function finish() {
-      document.getElementById("task").style.display = "none";
-      document.getElementById("result").style.display = "block";
-
-      // 计算每个名字的平均反应时和准确率
-      let stats = [ {rt:0, correct:0, count:0}, {rt:0, correct:0, count:0} ];
-      responses.forEach((r,i) => {
-        const target = trials[i];
-        stats[target].rt += r.rt;
-        stats[target].correct += r.correct ? 1 : 0;
-        stats[target].count++;
+      // 计算结果
+      let summary = {};
+      names.forEach(n=>{
+        const data = results.filter(r=>r.prime===n);
+        const acc = data.filter(r=>r.correct).length / data.length;
+        const rt = data.filter(r=>r.correct).reduce((a,b)=>a+b.rt,0)/data.filter(r=>r.correct).length;
+        summary[n] = {acc:acc, rt:rt};
       });
 
-      const avg = stats.map(s => ({
-        rt: s.rt / s.count,
-        acc: s.correct / s.count
-      }));
+      let chosen = names[0];
+      if (summary[names[1]].acc > summary[names[0]].acc && summary[names[1]].rt < summary[names[0]].rt) {
+        chosen = names[1];
+      }
 
-      let winner = avg[0].rt * (1-avg[0].acc) < avg[1].rt * (1-avg[1].acc) ? names[0] : names[1];
-
-      document.getElementById("final").innerText = 
-        `更显著的名字是：${winner}\n\n详细结果：\n${names[0]} - 平均RT: ${avg[0].rt.toFixed(1)}ms, 准确率: ${(avg[0].acc*100).toFixed(1)}%\n${names[1]} - 平均RT: ${avg[1].rt.toFixed(1)}ms, 准确率: ${(avg[1].acc*100).toFixed(1)}%`;
+      document.body.innerHTML = `
+        <h2>实验完成</h2>
+        <p>${names[0]}: 准确率 ${(summary[names[0]].acc*100).toFixed(1)}%，反应时 ${summary[names[0]].rt.toFixed(1)} ms</p>
+        <p>${names[1]}: 准确率 ${(summary[names[1]].acc*100).toFixed(1)}%，反应时 ${summary[names[1]].rt.toFixed(1)} ms</p>
+        <h3>更重要的人可能是：${chosen}</h3>
+      `;
+      console.log("所有结果：", results);
     }
   </script>
 </body>
 </html>
+
