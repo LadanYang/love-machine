@@ -2,123 +2,96 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8">
-  <title>潜意识名字实验</title>
-  <script src="https://unpkg.com/jspsych@7.3.0/dist/jspsych.js"></script>
-  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.2"></script>
-  <link href="https://unpkg.com/jspsych@7.3.0/css/jspsych.css" rel="stylesheet" />
+  <title>名字反应时实验</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+    #task, #result { display: none; }
+    button { padding: 10px 20px; margin: 20px; font-size: 18px; }
+  </style>
 </head>
-<body></body>
-<script>
+<body>
+  <h1>名字选择实验</h1>
+  <div id="setup">
+    <p>请输入两个你同样熟悉的名字：</p>
+    <input id="name1" placeholder="名字 1">
+    <input id="name2" placeholder="名字 2">
+    <button onclick="startTask()">开始实验</button>
+  </div>
 
-// ====================== 初始化 ======================
-const jsPsych = initJsPsych({
-  on_finish: function() {
-    // 显示原始结果表格
-    jsPsych.data.displayData();
-  }
-});
+  <div id="task">
+    <p id="prompt"></p>
+    <button id="btnLeft" onclick="respond(0)"></button>
+    <button id="btnRight" onclick="respond(1)"></button>
+  </div>
 
-// ====================== 获取名字 ======================
-let nameA = prompt("请输入第一个熟悉的名字：");
-let nameB = prompt("请输入第二个熟悉的名字：");
+  <div id="result">
+    <h2>结果</h2>
+    <p id="final"></p>
+  </div>
 
-// 示例词汇
-const realWords = ["苹果", "桌子", "学校", "朋友", "电影"];
-const fakeWords = ["苹呱", "桌目", "学片", "朋站", "电马"];
-let stimuli = [];
-realWords.forEach(w => stimuli.push({word:w, type:"real"}));
-fakeWords.forEach(w => stimuli.push({word:w, type:"fake"}));
-stimuli = jsPsych.randomization.shuffle(stimuli);
+  <script>
+    let names = [];
+    let trials = [];
+    let currentTrial = 0;
+    let startTime;
+    let responses = [];
 
-// ====================== 试次 ======================
-let trials = [];
+    function startTask() {
+      const n1 = document.getElementById("name1").value.trim();
+      const n2 = document.getElementById("name2").value.trim();
+      if (!n1 || !n2) { alert("请输入两个名字！"); return; }
 
-stimuli.forEach(stim => {
-  let prime = Math.random() > 0.5 ? nameA : nameB;
+      names = [n1, n2];
+      // 生成 10 次试次
+      trials = Array.from({length: 10}, () => Math.floor(Math.random() * 2));
 
-  // 注视点
-  trials.push({
-    type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<p style="font-size:50px;">+</p>`,
-    choices: "NO_KEYS",
-    trial_duration: 500
-  });
+      document.getElementById("setup").style.display = "none";
+      document.getElementById("task").style.display = "block";
 
-  // 潜意识名字
-  trials.push({
-    type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<p style="font-size:40px;">${prime}</p>`,
-    choices: "NO_KEYS",
-    trial_duration: 30 // 30 毫秒
-  });
-
-  // 目标词
-  trials.push({
-    type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<p style="font-size:40px;">${stim.word}</p>
-               <p style="font-size:20px;">按 Y=真实词, N=伪词</p>`,
-    choices: ['y','n'],
-    data: {prime: prime, word: stim.word, type: stim.type},
-    on_finish: function(data){
-      data.correct = (
-        (data.response == 'y' && stim.type=="real") ||
-        (data.response == 'n' && stim.type=="fake")
-      );
-    }
-  });
-});
-
-// ====================== 实验流程 ======================
-let timeline = [];
-
-// 说明
-timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: `<p>欢迎参加实验！</p>
-             <p>你将会快速看到一个名字，然后看到一个汉字词。</p>
-             <p>如果是真实词，按 Y；如果是伪词，按 N。</p>
-             <p>请尽可能又快又准。</p>
-             <p>按空格键开始。</p>`,
-  choices: [' ']
-});
-
-// 添加实验试次
-timeline = timeline.concat(trials);
-
-// 结束 & 自动结果
-timeline.push({
-  type: jsPsychHtmlKeyboardResponse,
-  stimulus: function(){
-    let data = jsPsych.data.get().filter({trial_type:"html-keyboard-response"});
-
-    let A = data.filter({prime:nameA});
-    let B = data.filter({prime:nameB});
-
-    let meanRTA = A.select('rt').mean();
-    let meanRTB = B.select('rt').mean();
-    let accA = A.filter({correct:true}).count() / A.count();
-    let accB = B.filter({correct:true}).count() / B.count();
-
-    let chosen;
-    if ((accA > accB && meanRTA < meanRTB) || (accA>=accB && meanRTA<=meanRTB)) {
-      chosen = nameA;
-    } else {
-      chosen = nameB;
+      nextTrial();
     }
 
-    return `<p>实验结束！</p>
-            <p>更重要的人是：<b>${chosen}</b></p>
-            <p>平均反应时间: ${Math.round(meanRTA)} ms (${nameA}), ${Math.round(meanRTB)} ms (${nameB})</p>
-            <p>准确率: ${(accA*100).toFixed(1)}% (${nameA}), ${(accB*100).toFixed(1)}% (${nameB})</p>
-            <p>谢谢参与！</p>`;
-  },
-  choices: "NO_KEYS",
-  trial_duration: 10000
-});
+    function nextTrial() {
+      if (currentTrial >= trials.length) { finish(); return; }
+      const target = trials[currentTrial];
+      document.getElementById("prompt").innerText = "请尽快选择：" + names[target];
+      document.getElementById("btnLeft").innerText = names[0];
+      document.getElementById("btnRight").innerText = names[1];
+      startTime = Date.now();
+    }
 
-// ====================== 运行 ======================
-jsPsych.run(timeline);
+    function respond(choice) {
+      const rt = Date.now() - startTime;
+      const target = trials[currentTrial];
+      const correct = (choice === target);
+      responses.push({ trial: currentTrial+1, rt, correct });
+      currentTrial++;
+      nextTrial();
+    }
 
-</script>
+    function finish() {
+      document.getElementById("task").style.display = "none";
+      document.getElementById("result").style.display = "block";
+
+      // 计算每个名字的平均反应时和准确率
+      let stats = [ {rt:0, correct:0, count:0}, {rt:0, correct:0, count:0} ];
+      responses.forEach((r,i) => {
+        const target = trials[i];
+        stats[target].rt += r.rt;
+        stats[target].correct += r.correct ? 1 : 0;
+        stats[target].count++;
+      });
+
+      const avg = stats.map(s => ({
+        rt: s.rt / s.count,
+        acc: s.correct / s.count
+      }));
+
+      let winner = avg[0].rt * (1-avg[0].acc) < avg[1].rt * (1-avg[1].acc) ? names[0] : names[1];
+
+      document.getElementById("final").innerText = 
+        `更显著的名字是：${winner}\n\n详细结果：\n${names[0]} - 平均RT: ${avg[0].rt.toFixed(1)}ms, 准确率: ${(avg[0].acc*100).toFixed(1)}%\n${names[1]} - 平均RT: ${avg[1].rt.toFixed(1)}ms, 准确率: ${(avg[1].acc*100).toFixed(1)}%`;
+    }
+  </script>
+</body>
 </html>
-
